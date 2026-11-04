@@ -13,6 +13,7 @@ window.addEventListener("resize", size);
 
 const drops = [];
 const ripples = [];
+const spray = [];
 let splashes = 0;
 
 // stones are kept as fractions so they stay in place when the window changes
@@ -25,12 +26,26 @@ function ledgeY() { return H * 0.12; }
 function poolY() { return H * 0.85; }
 
 function spawn() {
+  if (drops.length > 900) return;
   for (let i = 0; i < 3; i++) {
     drops.push({
       x: W * (0.46 + Math.random() * 0.08),
       y: ledgeY(),
       vx: (Math.random() - 0.5) * 0.4,
       vy: Math.random() * 0.5
+    });
+  }
+}
+
+function makeSpray(x) {
+  const n = 1 + Math.floor(Math.random() * 2);
+  for (let k = 0; k < n; k++) {
+    spray.push({
+      x: x,
+      y: poolY(),
+      vx: (Math.random() - 0.5) * 2,
+      vy: -1.2 - Math.random() * 2,
+      a: 0.9
     });
   }
 }
@@ -66,11 +81,22 @@ function step() {
       if (Math.random() < 0.08) {
         ripples.push({ x: d.x, r: 2, a: 0.8 });
       }
+      if (Math.random() < 0.12) {
+        makeSpray(d.x);
+      }
       splashes++;
       drops.splice(i, 1);
     } else if (d.x < -20 || d.x > W + 20) {
       drops.splice(i, 1);
     }
+  }
+  for (let i = spray.length - 1; i >= 0; i--) {
+    const p = spray[i];
+    p.vy += g;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.a -= 0.01;
+    if ((p.y > poolY() && p.vy > 0) || p.a <= 0) spray.splice(i, 1);
   }
   for (let i = ripples.length - 1; i >= 0; i--) {
     const rp = ripples[i];
@@ -119,6 +145,12 @@ function draw() {
     cx.beginPath();
     cx.ellipse(rp.x, poolY() + 6, rp.r, rp.r * 0.3, 0, 0, Math.PI * 2);
     cx.stroke();
+  }
+
+  // little jumps of water above the pool
+  for (const p of spray) {
+    cx.fillStyle = "rgba(230, 248, 252, " + Math.max(0, p.a) + ")";
+    cx.fillRect(p.x, p.y, 2, 2);
   }
 
   countEl.textContent = "splashes: " + splashes;

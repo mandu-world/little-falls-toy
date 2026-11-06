@@ -17,9 +17,10 @@ const spray = [];
 let splashes = 0;
 
 // stones are kept as fractions so they stay in place when the window changes
+// wet goes from 0 (dry) to 1 (soaked); it dries slowly
 const stones = [
-  { fx: 0.5, fy: 0.45, fr: 0.035 },
-  { fx: 0.43, fy: 0.62, fr: 0.03 }
+  { fx: 0.5, fy: 0.45, fr: 0.035, wet: 0 },
+  { fx: 0.43, fy: 0.62, fr: 0.03, wet: 0 }
 ];
 
 function ledgeY() { return H * 0.12; }
@@ -50,9 +51,16 @@ function makeSpray(x) {
   }
 }
 
+function mix(a, b, t) {
+  return Math.round(a + (b - a) * t);
+}
+
 function step() {
   spawn();
   const g = 0.15;
+  for (const s of stones) {
+    s.wet *= 0.996;
+  }
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
     d.vy += g;
@@ -74,6 +82,7 @@ function step() {
         if (dot < 0) {
           d.vx = (d.vx - 2 * dot * nx) * 0.5 + (Math.random() - 0.5) * 0.6;
           d.vy = (d.vy - 2 * dot * ny) * 0.5;
+          s.wet = Math.min(1, s.wet + 0.03);
         }
       }
     }
@@ -117,10 +126,11 @@ function draw() {
   cx.fillStyle = "#3d5e45";
   cx.fillRect(0, ledgeY() - 8, W, 10);
 
-  // stones
+  // stones: dry is light grey, wet is dark and a bit shiny
   for (const s of stones) {
     const r = s.fr * Math.min(W, H) * 2;
-    cx.fillStyle = "#7c8580";
+    const t = s.wet;
+    cx.fillStyle = "rgb(" + mix(124, 70, t) + "," + mix(133, 82, t) + "," + mix(128, 80, t) + ")";
     cx.beginPath();
     cx.arc(s.fx * W, s.fy * H, r, 0, Math.PI * 2);
     cx.fill();
@@ -128,6 +138,12 @@ function draw() {
     cx.beginPath();
     cx.arc(s.fx * W - r * 0.2, s.fy * H - r * 0.4, r * 0.4, 0, Math.PI * 2);
     cx.fill();
+    if (t > 0.2) {
+      cx.fillStyle = "rgba(230, 248, 252, " + (t * 0.5) + ")";
+      cx.beginPath();
+      cx.arc(s.fx * W + r * 0.35, s.fy * H - r * 0.3, r * 0.12, 0, Math.PI * 2);
+      cx.fill();
+    }
   }
 
   // drops
@@ -177,6 +193,6 @@ cv.addEventListener("pointerdown", function (e) {
     }
   }
   if (stones.length < 12 && py > ledgeY() && py < poolY()) {
-    stones.push({ fx: px / W, fy: py / H, fr: 0.02 + Math.random() * 0.02 });
+    stones.push({ fx: px / W, fy: py / H, fr: 0.02 + Math.random() * 0.02, wet: 0 });
   }
 });

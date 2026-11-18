@@ -23,6 +23,10 @@ const stones = [
   { fx: 0.43, fy: 0.62, fr: 0.03, wet: 0 }
 ];
 
+// one little leaf that floats on the pool
+// it drifts slowly and jiggles when drops land near it
+const leaf = { x: W * 0.3, vx: 0.15, bob: 0, t: 0 };
+
 function ledgeY() { return H * 0.12; }
 function poolY() { return H * 0.85; }
 
@@ -53,6 +57,26 @@ function makeSpray(x) {
 
 function mix(a, b, t) {
   return Math.round(a + (b - a) * t);
+}
+
+function poke(x) {
+  // a drop landed near the leaf: it bobs and gets pushed away a bit
+  const dx = leaf.x - x;
+  if (Math.abs(dx) < 40) {
+    leaf.bob = Math.min(6, leaf.bob + 1.5);
+    leaf.vx += dx > 0 ? 0.25 : -0.25;
+    if (leaf.vx > 2) leaf.vx = 2;
+    if (leaf.vx < -2) leaf.vx = -2;
+  }
+}
+
+function stepLeaf() {
+  leaf.t += 0.05;
+  leaf.bob *= 0.95;
+  leaf.vx += (0.15 - leaf.vx) * 0.01;
+  leaf.x += leaf.vx;
+  if (leaf.x > W + 20) leaf.x = -20;
+  if (leaf.x < -20) leaf.x = W + 20;
 }
 
 function step() {
@@ -93,6 +117,7 @@ function step() {
       if (Math.random() < 0.12) {
         makeSpray(d.x);
       }
+      poke(d.x);
       splashes++;
       drops.splice(i, 1);
     } else if (d.x < -20 || d.x > W + 20) {
@@ -113,6 +138,26 @@ function step() {
     rp.a -= 0.015;
     if (rp.a <= 0) ripples.splice(i, 1);
   }
+  stepLeaf();
+}
+
+function drawLeaf() {
+  const y = poolY() + 3 + Math.sin(leaf.t) * 1.2 - Math.abs(Math.sin(leaf.t * 4)) * leaf.bob;
+  const ang = Math.sin(leaf.t * 0.7) * 0.2 + Math.sin(leaf.t * 5) * leaf.bob * 0.04;
+  cx.save();
+  cx.translate(leaf.x, y);
+  cx.rotate(ang);
+  cx.fillStyle = "#c9a14a";
+  cx.beginPath();
+  cx.ellipse(0, 0, 11, 4, 0, 0, Math.PI * 2);
+  cx.fill();
+  cx.strokeStyle = "#8a6a2a";
+  cx.lineWidth = 1;
+  cx.beginPath();
+  cx.moveTo(-10, 0);
+  cx.lineTo(14, -1);
+  cx.stroke();
+  cx.restore();
 }
 
 function draw() {
@@ -158,10 +203,13 @@ function draw() {
 
   for (const rp of ripples) {
     cx.strokeStyle = "rgba(220, 245, 250, " + rp.a + ")";
+    cx.lineWidth = 1;
     cx.beginPath();
     cx.ellipse(rp.x, poolY() + 6, rp.r, rp.r * 0.3, 0, 0, Math.PI * 2);
     cx.stroke();
   }
+
+  drawLeaf();
 
   // little jumps of water above the pool
   for (const p of spray) {

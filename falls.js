@@ -15,6 +15,7 @@ const drops = [];
 const ripples = [];
 const spray = [];
 let splashes = 0;
+let leaps = 0;
 
 // stones are kept as fractions so they stay in place when the window changes
 // wet goes from 0 (dry) to 1 (soaked); it dries slowly
@@ -26,6 +27,12 @@ const stones = [
 // one little leaf that floats on the pool
 // it drifts slowly and jiggles when drops land near it
 const leaf = { x: W * 0.3, vx: 0.15, bob: 0, t: 0 };
+
+// one small fish under the water
+// jy is how deep it is under the surface (negative = in the air)
+// when drops land right above it, sometimes it jumps
+const SWIM_DEPTH = 22;
+const fish = { x: W * 0.7, dir: -1, t: 0, jy: SWIM_DEPTH, jvy: 0, jumping: false };
 
 function ledgeY() { return H * 0.12; }
 function poolY() { return H * 0.85; }
@@ -68,6 +75,12 @@ function poke(x) {
     if (leaf.vx > 2) leaf.vx = 2;
     if (leaf.vx < -2) leaf.vx = -2;
   }
+  // a drop landed right above the fish: maybe it jumps
+  if (!fish.jumping && Math.abs(fish.x - x) < 20 && Math.random() < 0.02) {
+    fish.jumping = true;
+    fish.jvy = -5 - Math.random() * 1.2;
+    leaps++;
+  }
 }
 
 function stepLeaf() {
@@ -77,6 +90,34 @@ function stepLeaf() {
   leaf.x += leaf.vx;
   if (leaf.x > W + 20) leaf.x = -20;
   if (leaf.x < -20) leaf.x = W + 20;
+}
+
+function stepFish() {
+  fish.t += 0.04;
+  if (fish.jumping) {
+    const before = fish.jy;
+    fish.x += fish.dir * 1.5;
+    fish.jvy += 0.15;
+    fish.jy += fish.jvy;
+    // it went back into the water: a big splash
+    if (before < 0 && fish.jy >= 0) {
+      ripples.push({ x: fish.x, r: 3, a: 0.9 });
+      ripples.push({ x: fish.x, r: 1, a: 0.7 });
+      makeSpray(fish.x);
+      makeSpray(fish.x);
+      leaf.bob = Math.min(6, leaf.bob + (Math.abs(leaf.x - fish.x) < 60 ? 3 : 0));
+    }
+    if (fish.jvy > 0 && fish.jy >= SWIM_DEPTH) {
+      fish.jy = SWIM_DEPTH;
+      fish.jvy = 0;
+      fish.jumping = false;
+    }
+  } else {
+    fish.x += fish.dir * 0.6;
+    if (Math.random() < 0.003) fish.dir = -fish.dir;
+  }
+  if (fish.x < 20) { fish.x = 20; fish.dir = 1; }
+  if (fish.x > W - 20) { fish.x = W - 20; fish.dir = -1; }
 }
 
 function step() {
@@ -139,6 +180,7 @@ function step() {
     if (rp.a <= 0) ripples.splice(i, 1);
   }
   stepLeaf();
+  stepFish();
 }
 
 function drawLeaf() {
@@ -157,6 +199,39 @@ function drawLeaf() {
   cx.moveTo(-10, 0);
   cx.lineTo(14, -1);
   cx.stroke();
+  cx.restore();
+}
+
+function drawFish() {
+  let y = poolY() + fish.jy;
+  let ang = 0;
+  if (fish.jumping) {
+    ang = Math.atan2(fish.jvy, 1.5);
+  } else {
+    y += Math.sin(fish.t) * 3;
+    ang = Math.sin(fish.t * 2) * 0.08;
+  }
+  const under = y > poolY() + 2;
+  cx.save();
+  cx.globalAlpha = under ? 0.45 : 1;
+  cx.translate(fish.x, y);
+  cx.scale(fish.dir, 1);
+  cx.rotate(ang);
+  const wag = Math.sin(fish.t * 8) * 2;
+  cx.fillStyle = "#d9824a";
+  cx.beginPath();
+  cx.moveTo(-8, 0);
+  cx.lineTo(-15, -5 + wag);
+  cx.lineTo(-15, 5 + wag);
+  cx.closePath();
+  cx.fill();
+  cx.beginPath();
+  cx.ellipse(0, 0, 10, 4.5, 0, 0, Math.PI * 2);
+  cx.fill();
+  cx.fillStyle = "#1d2f2a";
+  cx.beginPath();
+  cx.arc(5, -1, 1.2, 0, Math.PI * 2);
+  cx.fill();
   cx.restore();
 }
 
@@ -201,6 +276,8 @@ function draw() {
   cx.fillStyle = "#2c5d6b";
   cx.fillRect(0, poolY(), W, H - poolY());
 
+  drawFish();
+
   for (const rp of ripples) {
     cx.strokeStyle = "rgba(220, 245, 250, " + rp.a + ")";
     cx.lineWidth = 1;
@@ -217,7 +294,7 @@ function draw() {
     cx.fillRect(p.x, p.y, 2, 2);
   }
 
-  countEl.textContent = "splashes: " + splashes;
+  countEl.textContent = "splashes: " + splashes + "   fish jumps: " + leaps;
 }
 
 function loop() {

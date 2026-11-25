@@ -11,5 +11,9 @@ A tiny waterfall. Drops come over the mossy edge and fall into the pool.
   Put stones to send the water toward it.
 - A small fish swims under the water. When drops fall right on top of it, sometimes it jumps.
   It does not jump often. Send the water where it swims and wait.
+- On the right there is a little sand bank with a hole. A pale crab lives there.
+  It peeks out and walks sideways. If water lands near it, or if you tap it, it runs home.
+  Be calm and dry, and it comes out again.
 
 I made it after sniffing around the little falls. The real ones are wetter.
+The crab came after I read about pale crabs that run sideways on sand.

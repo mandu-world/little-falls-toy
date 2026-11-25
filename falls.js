@@ -16,6 +16,7 @@ const ripples = [];
 const spray = [];
 let splashes = 0;
 let leaps = 0;
+let peeks = 0;
 
 // stones are kept as fractions so they stay in place when the window changes
 // wet goes from 0 (dry) to 1 (soaked); it dries slowly
@@ -34,8 +35,15 @@ const leaf = { x: W * 0.3, vx: 0.15, bob: 0, t: 0 };
 const SWIM_DEPTH = 22;
 const fish = { x: W * 0.7, dir: -1, t: 0, jy: SWIM_DEPTH, jvy: 0, jumping: false };
 
+// one pale crab with a hole in the little sand bank on the right
+// it peeks out, walks sideways, and runs home when water lands near it
+const crab = { x: W * 0.9, out: 0, state: "hide", timer: 150, dir: 1, legT: 0, pause: 0, fast: false };
+
 function ledgeY() { return H * 0.12; }
 function poolY() { return H * 0.85; }
+function bankL() { return W * 0.78; }
+function bankTop() { return poolY() - 6; }
+function holeX() { return W * 0.9; }
 
 function spawn() {
   if (drops.length > 900) return;
@@ -66,6 +74,13 @@ function mix(a, b, t) {
   return Math.round(a + (b - a) * t);
 }
 
+function scareCrab(x, near) {
+  if (crab.out > 0.3 && crab.state !== "hide" && Math.abs(crab.x - x) < near) {
+    crab.state = "home";
+    crab.fast = true;
+  }
+}
+
 function poke(x) {
   // a drop landed near the leaf: it bobs and gets pushed away a bit
   const dx = leaf.x - x;
@@ -81,6 +96,8 @@ function poke(x) {
     fish.jvy = -5 - Math.random() * 1.2;
     leaps++;
   }
+  // a drop landed near the crab: it runs home
+  scareCrab(x, 60);
 }
 
 function stepLeaf() {
@@ -106,6 +123,7 @@ function stepFish() {
       makeSpray(fish.x);
       makeSpray(fish.x);
       leaf.bob = Math.min(6, leaf.bob + (Math.abs(leaf.x - fish.x) < 60 ? 3 : 0));
+      scareCrab(fish.x, 90);
     }
     if (fish.jvy > 0 && fish.jy >= SWIM_DEPTH) {
       fish.jy = SWIM_DEPTH;
@@ -118,6 +136,53 @@ function stepFish() {
   }
   if (fish.x < 20) { fish.x = 20; fish.dir = 1; }
   if (fish.x > W - 20) { fish.x = W - 20; fish.dir = -1; }
+}
+
+function stepCrab() {
+  const hole = holeX();
+  const lo = bankL() + 34;
+  const hi = W - 12;
+  if (crab.state === "hide") {
+    crab.out = Math.max(0, crab.out - 0.06);
+    crab.x = hole;
+    crab.timer--;
+    if (crab.timer <= 0) {
+      crab.state = "peek";
+      peeks++;
+    }
+  } else if (crab.state === "peek") {
+    crab.out += 0.015;
+    if (crab.out >= 1) {
+      crab.out = 1;
+      crab.state = "walk";
+      crab.timer = 300 + Math.random() * 400;
+      crab.dir = Math.random() < 0.5 ? -1 : 1;
+    }
+  } else if (crab.state === "walk") {
+    if (crab.pause > 0) {
+      crab.pause--;
+    } else {
+      crab.x += crab.dir * 0.6;
+      crab.legT += 0.35;
+      if (Math.random() < 0.01) crab.dir = -crab.dir;
+      if (Math.random() < 0.006) crab.pause = 30 + Math.random() * 60;
+    }
+    if (crab.x < lo) { crab.x = lo; crab.dir = 1; }
+    if (crab.x > hi) { crab.x = hi; crab.dir = -1; }
+    crab.timer--;
+    if (crab.timer <= 0) crab.state = "home";
+  } else if (crab.state === "home") {
+    const sp = crab.fast ? 3 : 1.2;
+    crab.legT += crab.fast ? 0.9 : 0.4;
+    if (Math.abs(crab.x - hole) <= sp) {
+      crab.x = hole;
+      crab.state = "hide";
+      crab.timer = 200 + Math.random() * 400;
+      crab.fast = false;
+    } else {
+      crab.x += crab.x < hole ? sp : -sp;
+    }
+  }
 }
 
 function step() {
@@ -181,6 +246,7 @@ function step() {
   }
   stepLeaf();
   stepFish();
+  stepCrab();
 }
 
 function drawLeaf() {
@@ -235,6 +301,71 @@ function drawFish() {
   cx.restore();
 }
 
+function drawBank() {
+  const bl = bankL();
+  const top = bankTop();
+  cx.fillStyle = "#b9a878";
+  cx.beginPath();
+  cx.moveTo(bl, poolY() + 4);
+  cx.quadraticCurveTo(bl + 20, top, bl + 40, top);
+  cx.lineTo(W, top);
+  cx.lineTo(W, poolY() + 4);
+  cx.closePath();
+  cx.fill();
+  // the crab's hole
+  cx.fillStyle = "#5a4e34";
+  cx.beginPath();
+  cx.ellipse(holeX(), top, 7, 2, 0, 0, Math.PI * 2);
+  cx.fill();
+}
+
+function drawCrab() {
+  if (crab.out <= 0) return;
+  const top = bankTop();
+  const y = top - 5 + (1 - crab.out) * 16;
+  cx.save();
+  cx.beginPath();
+  cx.rect(0, 0, W, top + 1);
+  cx.clip();
+  cx.translate(crab.x, y);
+  // legs
+  cx.strokeStyle = "#cbbd94";
+  cx.lineWidth = 1.2;
+  for (let s = -1; s <= 1; s += 2) {
+    for (let k = 0; k < 3; k++) {
+      const lift = Math.sin(crab.legT + k * 1.3 + (s > 0 ? 0 : 1.5)) * 1.5;
+      cx.beginPath();
+      cx.moveTo(s * 3, 1);
+      cx.lineTo(s * (7 + k * 2), 5 + lift);
+      cx.stroke();
+    }
+  }
+  // eye stalks
+  cx.beginPath();
+  cx.moveTo(-2, -3);
+  cx.lineTo(-3, -8);
+  cx.moveTo(2, -3);
+  cx.lineTo(3, -8);
+  cx.stroke();
+  // body
+  cx.fillStyle = "#e3d6b0";
+  cx.beginPath();
+  cx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2);
+  cx.fill();
+  // claws
+  cx.beginPath();
+  cx.arc(-7, -2, 2, 0, Math.PI * 2);
+  cx.arc(7, -2, 2.4, 0, Math.PI * 2);
+  cx.fill();
+  // eyes
+  cx.fillStyle = "#2a2a22";
+  cx.beginPath();
+  cx.arc(-3, -8, 1.1, 0, Math.PI * 2);
+  cx.arc(3, -8, 1.1, 0, Math.PI * 2);
+  cx.fill();
+  cx.restore();
+}
+
 function draw() {
   cx.fillStyle = "#1d2f2a";
   cx.fillRect(0, 0, W, H);
@@ -276,6 +407,8 @@ function draw() {
   cx.fillStyle = "#2c5d6b";
   cx.fillRect(0, poolY(), W, H - poolY());
 
+  drawBank();
+  drawCrab();
   drawFish();
 
   for (const rp of ripples) {
@@ -294,7 +427,7 @@ function draw() {
     cx.fillRect(p.x, p.y, 2, 2);
   }
 
-  countEl.textContent = "splashes: " + splashes + "   fish jumps: " + leaps;
+  countEl.textContent = "splashes: " + splashes + "   fish jumps: " + leaps + "   crab peeks: " + peeks;
 }
 
 function loop() {
@@ -307,6 +440,16 @@ loop();
 cv.addEventListener("pointerdown", function (e) {
   const px = e.clientX;
   const py = e.clientY;
+  // tap the crab: it runs home
+  if (crab.out > 0.5 && crab.state !== "hide") {
+    const cdx = px - crab.x;
+    const cdy = py - (bankTop() - 5);
+    if (cdx * cdx + cdy * cdy < 15 * 15) {
+      crab.state = "home";
+      crab.fast = true;
+      return;
+    }
+  }
   for (let i = 0; i < stones.length; i++) {
     const s = stones[i];
     const r = s.fr * Math.min(W, H) * 2;

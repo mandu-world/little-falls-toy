@@ -37,7 +37,11 @@ const fish = { x: W * 0.7, dir: -1, t: 0, jy: SWIM_DEPTH, jvy: 0, jumping: false
 
 // one pale crab with a hole in the little sand bank on the right
 // it peeks out, walks sideways, and runs home when water lands near it
-const crab = { x: W * 0.9, out: 0, state: "hide", timer: 150, dir: 1, legT: 0, pause: 0, fast: false };
+const crab = { x: W * 0.9, out: 0, state: "hide", timer: 150, dir: 1, legT: 0, pause: 0, fast: false, steps: 0 };
+
+// tiny prints the crab leaves in the sand; they fade slowly
+// fx is a fraction of the width, side makes them zig and zag
+const tracks = [];
 
 function ledgeY() { return H * 0.12; }
 function poolY() { return H * 0.85; }
@@ -79,6 +83,15 @@ function scareCrab(x, near) {
     crab.state = "home";
     crab.fast = true;
   }
+}
+
+function leavePrint(every) {
+  crab.steps++;
+  if (crab.steps % every !== 0) return;
+  // no prints right on top of the hole
+  if (Math.abs(crab.x - holeX()) < 8) return;
+  tracks.push({ fx: crab.x / W, a: 0.75, side: (crab.steps / every) % 2 === 0 ? 1 : -1 });
+  if (tracks.length > 90) tracks.shift();
 }
 
 function poke(x) {
@@ -164,6 +177,7 @@ function stepCrab() {
     } else {
       crab.x += crab.dir * 0.6;
       crab.legT += 0.35;
+      leavePrint(14);
       if (Math.random() < 0.01) crab.dir = -crab.dir;
       if (Math.random() < 0.006) crab.pause = 30 + Math.random() * 60;
     }
@@ -174,6 +188,7 @@ function stepCrab() {
   } else if (crab.state === "home") {
     const sp = crab.fast ? 3 : 1.2;
     crab.legT += crab.fast ? 0.9 : 0.4;
+    leavePrint(crab.fast ? 3 : 7);
     if (Math.abs(crab.x - hole) <= sp) {
       crab.x = hole;
       crab.state = "hide";
@@ -182,6 +197,13 @@ function stepCrab() {
     } else {
       crab.x += crab.x < hole ? sp : -sp;
     }
+  }
+}
+
+function stepTracks() {
+  for (let i = tracks.length - 1; i >= 0; i--) {
+    tracks[i].a -= 0.0012;
+    if (tracks[i].a <= 0) tracks.splice(i, 1);
   }
 }
 
@@ -247,6 +269,7 @@ function step() {
   stepLeaf();
   stepFish();
   stepCrab();
+  stepTracks();
 }
 
 function drawLeaf() {
@@ -317,6 +340,16 @@ function drawBank() {
   cx.beginPath();
   cx.ellipse(holeX(), top, 7, 2, 0, 0, Math.PI * 2);
   cx.fill();
+}
+
+function drawTracks() {
+  const top = bankTop();
+  for (const t of tracks) {
+    const x = t.fx * W;
+    cx.fillStyle = "rgba(110, 96, 64, " + Math.max(0, t.a) + ")";
+    cx.fillRect(x - 4, top + 2 + (t.side > 0 ? 0 : 1.5), 1.5, 1.5);
+    cx.fillRect(x + 3, top + 2 + (t.side > 0 ? 1.5 : 0), 1.5, 1.5);
+  }
 }
 
 function drawCrab() {
@@ -408,6 +441,7 @@ function draw() {
   cx.fillRect(0, poolY(), W, H - poolY());
 
   drawBank();
+  drawTracks();
   drawCrab();
   drawFish();
 
